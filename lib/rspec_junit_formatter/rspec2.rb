@@ -13,14 +13,8 @@ class RSpecJUnitFormatter < RSpec::Core::Formatters::BaseFormatter
 
 private
 
-  def xml_dump_examples
-    examples.each do |example|
-      send :"xml_dump_#{example.execution_result[:status]}", example
-    end
-  end
-
   def result_of(example)
-    example.execution_result[:status]
+    example.execution_result[:status].to_sym
   end
 
   def example_group_file_path_for(example)
@@ -33,8 +27,7 @@ private
 
   def classname_for(example)
     fp = example_group_file_path_for(example)
-    fp = fp.sub(%r{\.[^/.]+\Z}, "").gsub("/", ".").gsub(/\A\.+|\.+\Z/, "")
-    ENV['TEST_CLASSNAME_PREFIX'] ? "#{ENV['TEST_CLASSNAME_PREFIX']}.#{fp}" : fp
+    fp.sub(%r{\.[^/.]+\Z}, "").gsub("/", ".").gsub(/\A\.+|\.+\Z/, "")
   end
 
   def duration_for(example)
@@ -49,7 +42,22 @@ private
     example.execution_result[:exception]
   end
 
-  def formatted_backtrace_for(example)
-    format_backtrace exception_for(example).backtrace, example
+  def failure_for(example)
+    exception = exception_for(example)
+    backtrace = format_backtrace(exception.backtrace, example)
+
+    if shared_group = find_shared_group(example)
+      backtrace << "Shared Example Group: \"#{shared_group.metadata[:shared_group_name]}\" called from #{shared_group.metadata[:example_group][:location]}"
+    end
+
+    "#{exception.message}\n#{backtrace.join("\n")}"
+  end
+
+  def find_shared_group(example)
+    group_and_parent_groups(example).find { |group| group.metadata[:shared_group_name] }
+  end
+
+  def group_and_parent_groups(example)
+    example.example_group.parent_groups + [example.example_group]
   end
 end
